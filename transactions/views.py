@@ -17,6 +17,8 @@ from transactions.forms import (
 )
 from transactions.models import Transaction
 from accounts.models import UserBankAccount
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
 
 
 class TransactionCreateMixin(LoginRequiredMixin, CreateView):
@@ -193,6 +195,13 @@ class LoanListView(LoginRequiredMixin, ListView):
 
 # practice day codes
 
+def send_transaction_email(mail_subject, user, amount, to_email, template, account_no):
+    message = render_to_string(
+        template, {'user': user, 'amount': amount, 'account_no': account_no})
+    send_email = EmailMultiAlternatives(mail_subject, "", to=[to_email])
+    send_email.attach_alternative(message, "text/html")
+    send_email.send()
+
 
 class TransferMoneyView(TransactionCreateMixin):
     form_class = TransferMoneyForm
@@ -211,6 +220,7 @@ class TransferMoneyView(TransactionCreateMixin):
 
         # get reciever account from bank account model
         reciever = UserBankAccount.objects.get(account_no=account_no)
+        print(reciever.user.email)
 
         # adjust balance for sender and reciver
         account.balance -= amount
@@ -218,5 +228,14 @@ class TransferMoneyView(TransactionCreateMixin):
 
         account.save(update_fields=['balance'])
         reciever.save(update_fields=['balance'])
+
+        # (mail_subject, user, amount, to_email, template, account_no)
+        # send mail to sender
+        send_transaction_email("Transfer Completed", self.request.user, amount,
+                               self.request.user.email, "transactions/sender_email.html", account_no)
+
+        # send mail to reciever
+        send_transaction_email("Transfer Completed", reciever.user, amount, reciever.user.email,
+                               "transactions/reciever_email.html", account.account_no)
 
         return super().form_valid(form)
