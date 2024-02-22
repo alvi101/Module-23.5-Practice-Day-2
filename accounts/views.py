@@ -7,6 +7,8 @@ from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
 from django.views import View
 from django.shortcuts import redirect
 from django.contrib.auth.forms import PasswordChangeForm
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
 
 
 class UserRegistrationView(FormView):
@@ -52,7 +54,21 @@ class UserBankAccountUpdateView(View):
 
 
 # practice day codes
+
+def send_password_reset_email(mail_subject, user, to_email, template):
+    message = render_to_string(
+        template, {'user': user})
+    send_email = EmailMultiAlternatives(mail_subject, "", to=[to_email])
+    send_email.attach_alternative(message, "text/html")
+    send_email.send()
+
+
 class PasswordChange(PasswordChangeView):
     template_name = 'accounts/password_change.html'
     form_class = PasswordChangeForm
     success_url = reverse_lazy('login')
+
+    def form_valid(self, form):
+        send_password_reset_email(
+            "Password changed", self.request.user, self.request.user.email, "accounts/password_mail.html")
+        return super().form_valid(form)
